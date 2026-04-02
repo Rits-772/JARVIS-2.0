@@ -54,8 +54,14 @@ from rich.text import Text
 
 def MainExecution():
     """
-    Main orchestration loop for the Jarvis program.
-    Connects Ears (STT), Brain (DMM/Chatbot/Search), and Hands (Automation/System).
+    Main orchestration loop for Project JARVIS 2.0.
+    
+    Architecture:
+    1. EARS (STT): Captures and transcribes user voice.
+    2. BRAIN (DMM): Context-aware classification of user intent.
+    3. EYES (Vision): Pre-warmed Mediapipe + Random Forest monitoring.
+    4. HANDS (Automation): Task execution and search.
+    5. VOICE (TTS): Background streaming speech synthesis.
     """
     os.system('cls' if os.name == 'nt' else 'clear')
     print(f"[bold cyan][System][/bold cyan] {Assistantname} is coming online...")
