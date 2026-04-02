@@ -1,0 +1,22 @@
+# Environment variables (Sensitive API Keys)
+.env
+
+# Python Virtual Environment
+.venv/
+env/
+venv/
+ENV/
+
+# Python Caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Data (Models, Training photos, Chat logs)
+# We exclude these to prevent private face data from going public
+Data/
+FaceRecog/
+
+# IDE files
+.vscode/
+.idea/
