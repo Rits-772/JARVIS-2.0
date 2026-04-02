@@ -1,3 +1,4 @@
+# project JARVIS 3.0 Core
 edge-tts==6.1.12
 pygame==2.6.1
 cohere==5.13.11
@@ -20,8 +21,16 @@ rich==14.3.3
 screen_brightness_control==0.24.1
 speedtest-cli==2.1.3
 psutil==7.0.0
-# Vision dependencies (Stabilized Zero-Dependency)
-# tensorflow and dlib were removed due to NumPy 2.x conflicts and Windows build errors.
-# OpenCV now handles all base vision tasks.
+mtranslate==1.8
+googlesearch-python==1.3.1
+
+# Offline Speech-to-Text (V3.0)
+faster-whisper==1.2.1
+pyaudio==0.2.14
+
+# Optimized Search (V3.0)
+tavily-python==0.7.23
+
+# Vision dependencies
 mediapipe==0.10.14
 scikit-learn==1.4.2

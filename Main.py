@@ -2,37 +2,29 @@ import sys
 import os
 import asyncio
 import warnings
+from rich import print
+import datetime
+from dotenv import dotenv_values
 
 # --- WARNING AND LOG SUPPRESSION ---
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logs
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 warnings.filterwarnings("ignore", category=UserWarning, module='google.protobuf.symbol_database')
-# -----------------------------------
 
 from Backend.Model import FirstLayerDMM
-from Backend.RealtimeSearchEngine import RealtimeSearchEngine
-from Backend.Automation import Automation
 from Backend.SpeechToText import SpeechRecognition
-from Backend.Chatbot import ChatBot
-from Backend.TextToSpeech import TextToSpeech, wait_until_finished, shutdown_tts
-from dotenv import dotenv_values
-from rich import print
+from Backend.TextToSpeech import TextToSpeech, shutdown_tts
 from Backend.Vision.VisualEngine import JarvisEyes
-import threading
-import datetime
-import pygame
-import time
+from Backend.Router import JarvisRouter
+from Backend.Memory import memory
+from Backend.Logger import log_info, log_error
 
-pygame.mixer.init()
-
-def play_thinking_sound():
-    # Silent by user request
-    pass
-
-def stop_thinking_sound():
-    # Silent by user request
-    pass
+# Load environment variables
+env_vars = dotenv_values(".env")
+Username = env_vars.get("USERNAME", "Sir")
+Assistantname = env_vars.get("ASSISTANT_NAME", "Jarvis")
 
 def get_environmental_greeting():
+    """Returns a time-aware greeting for JARVIS."""
     hour = datetime.datetime.now().hour
     if hour < 12:
         part_of_day = "morning"
@@ -40,271 +32,69 @@ def get_environmental_greeting():
         part_of_day = "afternoon"
     else:
         part_of_day = "evening"
-    
-    return f"Good {part_of_day}, {Username}. All core systems are online. How may I be of service?"
+    return f"Good {part_of_day}, {Username}. All core systems are online. Hold Alt+J whenever you need me, Sir."
 
-# Load environment variables
-env_vars = dotenv_values(".env")
-Username = env_vars.get("USERNAME", "Sir")
-UserRealName = env_vars.get("USER_REAL_NAME", "Sir")
-Assistantname = env_vars.get("ASSISTANT_NAME", "Jarvis")
-
-from rich.live import Live
-from rich.text import Text
-
-def MainExecution():
+async def MainExecution():
     """
-    Main orchestration loop for Project JARVIS 2.0.
-    
-    Architecture:
-    1. EARS (STT): Captures and transcribes user voice.
-    2. BRAIN (DMM): Context-aware classification of user intent.
-    3. EYES (Vision): Pre-warmed Mediapipe + Random Forest monitoring.
-    4. HANDS (Automation): Task execution and search.
-    5. VOICE (TTS): Background streaming speech synthesis.
+    Main Orchestration Loop for JARVIS 3.0 (PC Optimized).
+    - Offline Speech-to-Text (Faster-Whisper + Alt+J)
+    - Local Vision Engine (Mediapipe + Random Forest)
+    - Decision Making & Task Routing (Groq Llama 3.1)
+    - 3-Layer Memory & Structured Logging
     """
+    # UI Setup
     os.system('cls' if os.name == 'nt' else 'clear')
-    print(f"[bold cyan][System][/bold cyan] {Assistantname} is coming online...")
+    print(f"\n[bold cyan]------------------------------------------------[/bold cyan]")
+    print(f"[bold cyan]      {Assistantname.upper()} 3.0 - ADVANCED PC ASSISTANT[/bold cyan]")
+    print(f"[bold cyan]------------------------------------------------[/bold cyan]\n")
     
-    # Warm up Vision System (Zero-Latency mode)
     print(f"[bold yellow][System][/bold yellow] Initializing Visual Sensors...")
     JarvisEyes.warm_up_camera()
-    print(f"[bold yellow][System][/bold yellow] Visual Sensors Online.")
+    log_info("Core systems initializing...")
 
-    # Welcome message (Environmentally aware)
+    # Say the welcome message
     greeting = get_environmental_greeting()
+    # We don't await this because the greeting should be spoken as the system comes ready
     TextToSpeech(greeting)
+    
+    router = JarvisRouter()
 
     while True:
         try:
-            # Step 1: Listen for user input
-            print(f"\n[bold green][Listening...][/bold green]")
+            # Step 1: Listen using the Alt+J Hotkey (Blocking)
             query = SpeechRecognition()
             
             if not query or len(query.strip()) < 2:
                 continue
                 
-            print(f"[bold white]User:[/bold white] {query}")
+            print(f"[bold white]\nUser:[/bold white] {query}")
             
-            # Step 2: Classify tasks via the Decision-Making Model (DMM) with context support
-            try:
-                import json
-                with open(r"Data\ChatLog.json", "r") as f:
-                    chat_history = json.load(f)
-            except Exception:
-                chat_history = []
-
-            decision = FirstLayerDMM(query, chat_history)
-            print(f"[bold blue][{Assistantname} Brain][/bold blue] Tasks identified: {decision}")
+            # Step 2: Intent Classification via Decision-Making Model (DMM)
+            # Uses conversation history from the new memory system
+            chat_context = memory.short_term 
+            decision = FirstLayerDMM(query, chat_context)
             
-            # Variables to track if we need to provide a conversational response
-            automation_tasks = []
+            # Step 3: Route Tasks via the Async Router
+            # Executes vision scans, image generation, and streaming chat in parallel/sequence as needed
+            await router.route_tasks(decision, query)
             
-            for task in decision:
-                task = task.strip()
-                
-                if task.startswith("general") or task.startswith("realtime"):
-                    # Route to conversational or realtime engine — full streaming mode
-                    is_realtime = task.startswith("realtime")
-                    prompt = task.replace("realtime " if is_realtime else "general ", "")
-                    play_thinking_sound()
-
-                    try:
-                        from Backend.TextToSpeech import StopSpeech
-                        StopSpeech()
-                        
-                        engine = RealtimeSearchEngine if is_realtime else ChatBot
-                        
-                        # High-end Streaming UI components
-                        display_text = Text()
-                        display_text.append(f"[{Assistantname}]: ", style="bold cyan")
-                        
-                        # Buffers and state for the robust tag parser
-                        full_content = ""
-                        last_processed_idx = 0
-                        inside_speech = False
-                        inside_details = False  # To handle technical details vs speech
-                        speech_buffer = ""
-                        current_drafting_sentence = ""
-                        
-                        # ---------------------------------------------------------
-                        # ROBUST TAG-AWARE STREAMING LOOP
-                        # ---------------------------------------------------------
-                        with Live(display_text, refresh_per_second=15, transient=False) as live:
-                            for item in engine(prompt):
-                                if item["type"] == "token":
-                                    token = item["text"]
-                                    full_content += token
-                                    
-                                    # Identify all tag boundaries in the accumulated text
-                                    # We look for [Speech], [/Speech], [Details], [/Details]
-                                    while True:
-                                        # Find the next tag start '['
-                                        next_tag_start = full_content.find("[", last_processed_idx)
-                                        
-                                        # If no '[' found, all text from last_processed_idx to end is content
-                                        if next_tag_start == -1:
-                                            new_content = full_content[last_processed_idx:]
-                                            if new_content:
-                                                # Process this content based on current state
-                                                current_drafting_sentence += new_content
-                                                if inside_speech and not inside_details:
-                                                    speech_buffer += new_content
-                                                    # Feed to TTS at sentence boundaries
-                                                    if any(p in new_content for p in ".!?"):
-                                                        if speech_buffer.strip():
-                                                            print(f"[Speech Debug] Feeding to TTS: {speech_buffer.strip()}")
-                                                            TextToSpeech(speech_buffer.strip())
-                                                        speech_buffer = ""
-                                                
-                                                # Update UI
-                                                temp_text = display_text.copy()
-                                                temp_text.append(current_drafting_sentence, style="bright_black")
-                                                live.update(temp_text)
-                                                last_processed_idx = len(full_content)
-                                            break
-                                        
-                                        # We found a '['. Is it a full tag yet?
-                                        next_tag_end = full_content.find("]", next_tag_start)
-                                        if next_tag_end == -1:
-                                            # Tag is incomplete (e.g., "[Spee"). 
-                                            # Process any content BEFORE the '[' then wait for more tokens.
-                                            pre_tag_content = full_content[last_processed_idx:next_tag_start]
-                                            if pre_tag_content:
-                                                current_drafting_sentence += pre_tag_content
-                                                if inside_speech and not inside_details:
-                                                    speech_buffer += pre_tag_content
-                                                    if any(p in pre_tag_content for p in ".!?"):
-                                                        if speech_buffer.strip():
-                                                            print(f"[Speech Debug] Feeding to TTS: {speech_buffer.strip()}")
-                                                            TextToSpeech(speech_buffer.strip())
-                                                        speech_buffer = ""
-                                                
-                                                temp_text = display_text.copy()
-                                                temp_text.append(current_drafting_sentence, style="bright_black")
-                                                live.update(temp_text)
-                                            
-                                            last_processed_idx = next_tag_start
-                                            break
-                                        
-                                        # We have a full tag like [Speech]
-                                        tag = full_content[next_tag_start : next_tag_end + 1]
-                                        
-                                        # 1. Process content before the tag
-                                        pre_tag_content = full_content[last_processed_idx:next_tag_start]
-                                        if pre_tag_content:
-                                            current_drafting_sentence += pre_tag_content
-                                            if inside_speech and not inside_details:
-                                                speech_buffer += pre_tag_content
-                                                if any(p in pre_tag_content for p in ".!?"):
-                                                    if speech_buffer.strip():
-                                                        TextToSpeech(speech_buffer.strip())
-                                                    speech_buffer = ""
-
-                                        # 2. Update state based on the tag
-                                        if tag == "[Speech]":
-                                            inside_speech = True
-                                        elif tag == "[/Speech]":
-                                            if speech_buffer.strip() and inside_speech and not inside_details:
-                                                print(f"[Speech Debug] Final Speech Chunk: {speech_buffer.strip()}")
-                                                TextToSpeech(speech_buffer.strip())
-                                            speech_buffer = ""
-                                            inside_speech = False
-                                        elif tag == "[Details]":
-                                            inside_details = True
-                                        elif tag == "[/Details]":
-                                            inside_details = False
-                                        
-                                        # 3. Advance pointer past the tag
-                                        last_processed_idx = next_tag_end + 1
-                                        
-                                        # Refresh UI after tag processing
-                                        temp_text = display_text.copy()
-                                        temp_text.append(current_drafting_sentence, style="bright_black")
-                                        live.update(temp_text)
-
-                                    time.sleep(0.04) # Natural typing delay
-
-                                elif item["type"] == "sentence":
-                                    # Generator reached sentence-ending punctuation
-                                    display_text.append(current_drafting_sentence, style="cyan")
-                                    current_drafting_sentence = ""
-                                    stop_thinking_sound()
-                    
-                    except Exception as e:
-                        print(f"[bold red][System Error][/bold red] Streaming failed: {e}")
-                        TextToSpeech("I apologize, sir, but I encountered an error while processing your request.")
-                    
-                    finally:
-                        stop_thinking_sound() # Ensure safety
-                        # The Live display takes care of the final print.
-                        # We just need a final newline for safety.
-                        print("")
-
-                elif task.startswith("vision"):
-                    # Step 4: Handle Visual Intelligence Tasks
-                    if task.startswith("vision learn"):
-                        name = task.replace("vision learn", "").strip()
-                        if not name or name.lower() == "unknown":
-                            name = UserRealName
-                        TextToSpeech(f"Initializing facial enrollment protocol for {name}.")
-                        print(f"[bold cyan][{Assistantname}][/bold cyan]: Initializing facial enrollment protocol for {name}.")
-                        
-                        success = JarvisEyes.enroll_face(name)
-                        if success:
-                            msg = f"Enrollment complete. I will now be able to recognize you as {name}."
-                        else:
-                            msg = "I apologize, sir, but the face enrollment process failed. Did not capture sufficient data."
-                        
-                        print(f"[bold cyan][{Assistantname}][/bold cyan]: {msg}")
-                        TextToSpeech(msg)
-                    else:
-                        TextToSpeech("Processing visual data. Scanning the area, sir.")
-                        
-                        if "face" in task:
-                            report = JarvisEyes.scan(duration=10, mode="face")
-                        elif "object" in task:
-                            report = JarvisEyes.scan(duration=10, mode="object")
-                        else:
-                            report = JarvisEyes.scan(duration=10, mode="both")
-                        
-                        print(f"[bold cyan][{Assistantname}][/bold cyan]: {report}")
-                        TextToSpeech(report)
-                    
-                elif "exit" in task.lower():
-                    TextToSpeech("Shutting down core systems. Goodbye, Sir.")
-                    print(f"[bold red][System] Exiting...[/bold red]")
-                    wait_until_finished() # Ensure he finishes speaking before exit
-                    shutdown_tts()
-                    sys.exit()
-                    
-                elif task.startswith("generate image"):
-                    # Dynamically import to avoid overhead if not used
-                    from Backend.ImageGeneration import GenerateImages
-                    prompt = task.replace("generate image ", "")
-                    print(f"[bold yellow][System][/bold yellow] Generating image for: {prompt}")
-                    GenerateImages(prompt)
-                    TextToSpeech(f"Sir, I have generated the images based on your prompt: {prompt}.")
-                    
-                else:
-                    # Collect automation/system tasks to run concurrently
-                    automation_tasks.append(task)
-
-            # Step 3: Execute all automation and system tasks in parallel
-            if automation_tasks:
-                print(f"[bold magenta][System][/bold magenta] Executing automations: {automation_tasks}")
-                # Note: Automation() is an async function
-                asyncio.run(Automation(automation_tasks))
-                
+        except KeyboardInterrupt:
+            # Propagate to global handler
+            raise
         except Exception as e:
-            print(f"[bold red][Error][/bold red] An unexpected error occurred: {e}")
-            # Try to recover or notify the user
+            log_error(f"Global error in MainExecution: {e}")
+            print(f"[bold red][System Error][/bold red]: {e}")
             continue
 
 if __name__ == "__main__":
     try:
-        MainExecution()
+        asyncio.run(MainExecution())
     except KeyboardInterrupt:
-        print(f"\n[bold red][System][/bold red] Manual override detected. Powering down.")
+        print(f"\n[bold red][System][/bold red] External override detected. JARVIS is shutting down.")
         shutdown_tts()
         sys.exit()
+    except Exception as e:
+        log_error(f"Startup crash: {e}")
+        print(f"[bold red]CRITICAL SHUTDOWN:[/bold red] {e}")
+        shutdown_tts()
+        sys.exit(1)
