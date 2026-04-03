@@ -81,20 +81,18 @@ def RealtimeSearchEngine(prompt):
     # 1. Fetch real-time context
     search_context = TavilySearch(prompt)
     
-    # 2. Get current memory context
+    # 2. Get current memory context (Facts/Prefs)
     memory_context = memory.get_context_for_brain()
     
-    # 3. Construct messages
+    # 3. Add prompt to memory and get clean history
+    memory.add_chat_turn("user", prompt)
+    llm_history = memory.get_llm_messages()
+    
+    # 4. Construct messages payload
     msgs = [
         {"role": "system", "content": System},
         {"role": "system", "content": f"Current Context:\n{memory_context}\n\nSearch Data:\n{search_context}\n\n{Information()}"}
-    ]
-    
-    # Add prompt to memory and local message list
-    memory.add_chat_turn("user", prompt)
-    # The memory.short_term now contains the new prompt
-    for turn in memory.short_term:
-        msgs.append({"role": turn["role"], "content": turn["content"]})
+    ] + llm_history
 
     completion = client.chat.completions.create(
         model="llama-3.3-70b-versatile",

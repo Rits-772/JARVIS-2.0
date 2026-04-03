@@ -70,6 +70,16 @@ class JarvisMemory:
         with open(ChatLogFilePath, "w") as f:
             json.dump(log, f, indent=4)
 
+    def get_llm_messages(self):
+        """Returns a list of messages with ONLY 'role' and 'content' for Groq API."""
+        clean_messages = []
+        for turn in self.short_term:
+            clean_messages.append({
+                "role": turn["role"],
+                "content": turn["content"]
+            })
+        return clean_messages
+
     def update_fact(self, key, value):
         """Updates a user preference or fact in long-term memory."""
         self.long_term["preferences"][key] = value
@@ -78,20 +88,9 @@ class JarvisMemory:
     def get_context_for_brain(self):
         """Returns a string representing the context (Memory + Recent Chat)."""
         context = f"User Name: {self.long_term.get('user_name', 'Sir')}\n"
-        
         if self.long_term["preferences"]:
             context += "Preferences: " + str(self.long_term["preferences"]) + "\n"
-            
-        chat_context = ""
-        for turn in self.short_term:
-            role = "User" if turn["role"] == "user" else "Assistant"
-            chat_context += f"{role}: {turn['content']}\n"
-            
-        return context + "\nRecent Conversation:\n" + chat_context
+        return context
 
 # Global instance for easy access
 memory = JarvisMemory()
-
-if __name__ == "__main__":
-    # Test
-    print(memory.get_context_for_brain())

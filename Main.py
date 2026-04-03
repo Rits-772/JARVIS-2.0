@@ -8,7 +8,9 @@ from dotenv import dotenv_values
 
 # --- WARNING AND LOG SUPPRESSION ---
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
 warnings.filterwarnings("ignore", category=UserWarning, module='google.protobuf.symbol_database')
+warnings.filterwarnings("ignore", category=UserWarning, module='huggingface_hub')
 
 from Backend.Model import FirstLayerDMM
 from Backend.SpeechToText import SpeechRecognition
@@ -32,12 +34,12 @@ def get_environmental_greeting():
         part_of_day = "afternoon"
     else:
         part_of_day = "evening"
-    return f"Good {part_of_day}, {Username}. All core systems are online. Hold Alt+J whenever you need me, Sir."
+    return f"Good {part_of_day}, {Username}. All core systems are online. I am listening, Sir."
 
 async def MainExecution():
     """
     Main Orchestration Loop for JARVIS 3.0 (PC Optimized).
-    - Offline Speech-to-Text (Faster-Whisper + Alt+J)
+    - Offline Speech-to-Text (Faster-Whisper Continuous)
     - Local Vision Engine (Mediapipe + Random Forest)
     - Decision Making & Task Routing (Groq Llama 3.1)
     - 3-Layer Memory & Structured Logging

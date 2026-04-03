@@ -8,6 +8,8 @@ GroqAPIKey = env_vars.get("GROQ_API_KEY")
 
 client = Groq(api_key=GroqAPIKey)
 
+from Backend.Memory import memory
+
 # List of valid intents for validation
 VALID_INTENTS = [
     "exit", "general", "realtime", "open", "close", "play", 
@@ -52,30 +54,23 @@ Instructions:
 def FirstLayerDMM(prompt: str = "test", chat_history: list = []):
     """
     Classifies the user prompt into structured JSON tasks.
-    Uses chat_history to resolve references (pronouns).
+    Uses sanitized memory for pronoun resolution.
     """
     system_msg = {
         "role": "system", 
-        "content": preamble + "\n\nCRITICAL: Use conversation history to resolve pronouns (e.g., 'his songs' -> 'charlie puth's songs')."
+        "content": preamble + f"\n\nContext: {memory.get_context_for_brain()}\n\nCRITICAL: Use context to resolve pronouns."
     }
     
-    context_msgs = []
-    if chat_history:
-        for entry in chat_history[-6:]:
-             context_msgs.append({
-                 "role": entry.get("role", "user"), 
-                 "content": entry.get("content", "")
-             })
-
-    messages = [system_msg] + context_msgs + ChatHistory + [{"role": "user", "content": prompt}]
+    # Use clean LLM messages from memory
+    llm_messages = memory.get_llm_messages()
+    messages = [system_msg] + ChatHistory + llm_messages + [{"role": "user", "content": prompt}]
     
     try:
         completion = client.chat.completions.create(
             model='llama-3.1-8b-instant', 
             messages=messages,
             max_tokens=200,
-            temperature=0.1, 
-            response_format={"type": "json_object"} if "llama-3-70b" in "llama-3.1-8b-instant" else None # 8b doesn't always support json_object mode, but we'll prompt for it
+            temperature=0.1
         )
         
         raw_response = completion.choices[0].message.content.strip()
